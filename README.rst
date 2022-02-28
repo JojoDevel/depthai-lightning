@@ -16,17 +16,16 @@ DepthAI Lightning
 
 
 
-Python Boilerplate contains all the boilerplate you need to create a Python package.
-
+DepthAI Lightning is a high-level library for [DepthAI](https://github.com/luxonis/depthai-python.git). It aims to reduce the code size for simple applications and to accelerate the development for more complex pipelines.
 
 * Free software: MIT license
-* Documentation: https://depthai-lightning.readthedocs.io.
+* Documentation: https://depthai-lightning.readthedocs.io. (not yet)
 
 
 Features
 --------
 
-* TODO
+- **High-level node**: Use high-level nodes that hide depthai complexities
 
 Credits
 -------
