@@ -10,3 +10,4 @@ disable =
     R0914, # too many local variables
     R1711, # useless return is okay
     W0632, # problems when unpacking numpy arrays
+    R0201, # problems with abstract methods
