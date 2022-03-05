@@ -12,16 +12,13 @@ from depthai_lightning import PipelineManager
 from .utils import unpack_raw10
 
 
-class Node:
-    """Base class for high-level nodes"""
+class InputOutput:
+    """Provides abstract class for input and output linking
 
-    def __init__(self, pm: PipelineManager):
-        self.pm = pm
-
-        self.pm.nodes.append(self)
-
-    def activate(self, device: dai.Device):
-        pass
+    Raises:
+        NotImplementedError: input/output endpoints have to be implemented by subclasses.
+        ValueError: when linking fails due to wrong input/output names
+    """
 
     @property
     def inputs(self) -> List[str]:
@@ -32,8 +29,7 @@ class Node:
         Returns:
             List[str]: list of all input names.
         """
-        # this node has no inputs
-        return []
+        raise NotImplementedError()
 
     @property
     def outputs(self) -> List[str]:
@@ -44,7 +40,7 @@ class Node:
         Returns:
             List[str]: list of all output names
         """
-        return []
+        raise NotImplementedError()
 
     def get_input(self, name: str):
         """get the depthai object of an input name.
@@ -55,7 +51,7 @@ class Node:
         Raises:
             NotImplementedError: Please implement this abstract method
         """
-        raise ValueError("No inputs available!")
+        raise NotImplementedError()
 
     def get_output(self, name: str):
         """get the depthai object of an output name.
@@ -66,7 +62,7 @@ class Node:
         Raises:
             NotImplementedError: Please implement this abstract method
         """
-        raise ValueError("No outputs available!")
+        raise NotImplementedError()
 
     def __getitem__(self, name: str):
         """get input or output name
@@ -130,6 +126,18 @@ class Node:
 
         # link my output to target's input
         selected_output.link(selected_input)
+
+
+class Node:
+    """Base class for high-level nodes"""
+
+    def __init__(self, pm: PipelineManager):
+        self.pm = pm
+
+        self.pm.nodes.append(self)
+
+    def activate(self, device: dai.Device):
+        pass
 
 
 ## input
