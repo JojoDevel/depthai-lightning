@@ -4,15 +4,15 @@
 import cv2
 
 from depthai_lightning import PipelineManager
-from depthai_lightning.nodes import CameraColor
+from depthai_lightning.nodes import ColorCamera, LiveView
 
 if __name__ == "__main__":
 
     pm = PipelineManager()
 
     # create high-level nodes
-    cam = CameraColor(pm)
-    liveView = cam.liveView(stream="preview")  # or raw, isp
+    cam = ColorCamera(pm)
+    liveView = LiveView(pm, cam, "isp")  # or raw, isp
 
     with pm.createDevice() as device:
         while True:
