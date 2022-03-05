@@ -153,7 +153,65 @@ class Camera(Node):
     """Basic camera node"""
 
 
-class CameraColor(Camera):
+class MonoCamera(Camera, InputOutput):
+    """Mono Camera implementation"""
+
+    DEFAULT_OUT_STREAM = "out"
+
+    res_mapping = {
+        800: dai.MonoCameraProperties.SensorResolution.THE_800_P,
+        720: dai.MonoCameraProperties.SensorResolution.THE_720_P,
+        480: dai.MonoCameraProperties.SensorResolution.THE_480_P,
+        400: dai.MonoCameraProperties.SensorResolution.THE_400_P,
+    }
+
+    def __init__(
+        self,
+        pm: PipelineManager,
+        socket: dai.CameraBoardSocket,
+        res_lower: int,
+        fps: int = 30,
+    ):
+        super().__init__(pm)
+
+        self.fps = fps
+        self.socket = socket
+        self.res = res_lower
+
+        assert res_lower in self.res_mapping
+
+        # create pipeline node
+        self.cam = pm.pipeline.create(dai.node.MonoCamera)
+
+        # set socket
+        self.cam.setBoardSocket(socket)
+
+        # resolution
+        self.cam.setResolution(self.res_mapping[res_lower])
+        self.cam.setFps(self.fps)
+
+    @property
+    def inputs(self):
+        # this node has no inputs
+        return []
+
+    def get_input(self, name: str):
+        raise ValueError("No inputs available!")
+
+    @property
+    def outputs(self):
+        return [self.DEFAULT_OUT_STREAM]
+
+    def get_output(self, name: str):
+        assert name in self.outputs, f"Unkwown output stream {name}"
+
+        if name == self.DEFAULT_OUT_STREAM:
+            return self.cam.out
+
+        raise ValueError(f"Do not know output stream {name}")
+
+
+class ColorCamera(Camera, InputOutput):
     """High-level node for the depthai camera"""
 
     rgb_res_opts = {
@@ -190,7 +248,7 @@ class CameraColor(Camera):
         self.preview_size = preview_size
         self.name = name
 
-        self.cam.setResolution(CameraColor.rgb_res_opts.get(self.resolution))
+        self.cam.setResolution(ColorCamera.rgb_res_opts.get(self.resolution))
         self.cam.setPreviewSize(*self.preview_size)
 
         # Optional, set manual focus. 255: macro (8cm), about 120..130: infinity
@@ -200,6 +258,22 @@ class CameraColor(Camera):
         self.cam.setFps(self.fps)  # Default: 30
         if self.rotate:
             self.cam.setImageOrientation(dai.CameraImageOrientation.ROTATE_180_DEG)
+
+    @property
+    def outputs(self):
+        return ["preview", "raw", "isp"]
+
+    @property
+    def inputs(self):
+        return []
+
+    def get_input(self, name: str):
+        raise ValueError(f"{self.__class__.__name__} does not have any inputs")
+
+    def get_output(self, name: str):
+        assert name in self.outputs
+
+        return getattr(self.cam, name)
 
     def liveView(self, stream="preview"):
         """Create a live view object for a specific camera stream preview, raw or isp.
@@ -236,10 +310,6 @@ class CameraColor(Camera):
 
         # compose and return the live view object
         return LiveView(self.pm, stream_name, data_modifier=modifier)
-
-
-class CameraGray(Camera):
-    """Gray camera input node"""
 
 
 ## Processing
