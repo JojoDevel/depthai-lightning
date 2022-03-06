@@ -32,6 +32,8 @@ class PipelineManager:
         Returns:
             str: unique xstream name
         """
+        assert name
+
         if name in self.xstream_names:
             # generate new name
             temp_name = str(name)
