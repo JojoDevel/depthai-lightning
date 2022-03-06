@@ -413,7 +413,12 @@ class LiveView(Node):
     """High-level node for live viewing image content"""
 
     def __init__(
-        self, pm: PipelineManager, stream_name: str, data_modifier, max_queue_size=4
+        self,
+        pm: PipelineManager,
+        node: Node,
+        output_name: str = None,
+        data_modifier=None,
+        max_queue_size=4,
     ):
         """Compose live view
 
@@ -424,10 +429,45 @@ class LiveView(Node):
             maxQueueSize (int): max number of queued packages. Default: 4.
         """
         super().__init__(pm)
-        self.stream_name = stream_name
         self.data_modifier = data_modifier
         self.max_queue_size = max_queue_size
         self.qView = None
+        self.node = node
+
+        if output_name is None:
+            if len(self.node.outputs) == 1:
+                output_name = self.node.outputs[0]
+            else:
+                raise ValueError("Please specify an output name!")
+
+        self.stream_name = output_name
+
+        # TODO: this section is ugly. Should be handled in the nodes (ColorCamera, StereoDepth and MonoCamera)
+        if data_modifier is None and isinstance(node, ColorCamera):
+            if output_name == "preview":
+                self.data_modifier = preview_modifier
+            elif output_name == "isp":
+                self.data_modifier = isp_modifier
+            elif output_name == "raw":
+                self.data_modifier = raw_modifier
+        elif data_modifier is None and isinstance(node, StereoDepth):
+            if output_name == "depth":
+                self.data_modifier = preview_modifier
+        elif data_modifier is None and isinstance(node, MonoCamera):
+            if output_name == "out":
+                self.data_modifier = preview_modifier
+
+        assert (
+            self.data_modifier
+        ), "please a modifier to convert depthai data package to an opencv image"
+
+        assert not output_name is None
+
+        # create an output to host for the node output stream
+        self.x_out = self.pm.pipeline.createXLinkOut()
+        self.stream_name = self.pm.add_xstream_name(output_name + "_out")  # unique name
+        self.x_out.setStreamName(self.stream_name)
+        self.node.get_output(output_name).link(self.x_out.input)
 
     def activate(self, device):
         """Activates this nodes and starts all the device specific processes.
