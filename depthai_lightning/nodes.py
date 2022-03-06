@@ -112,11 +112,11 @@ class InputOutput:
                 )
 
         if target_input:
-            selected_input = self.get_input(target_input)
+            selected_input = target.get_input(target_input)
         else:
             if len(inputs) == 1:
                 # choose default input
-                selected_input = self.get_input(inputs[0])
+                selected_input = target.get_input(inputs[0])
             else:
                 raise ValueError(
                     f"Multiple outputs available {outputs} but none is specified!"
