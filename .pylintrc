@@ -11,3 +11,4 @@ disable =
     R1711, # useless return is okay
     W0632, # problems when unpacking numpy arrays
     R0201, # problems with abstract methods
+    W0511, # allow TODO/FIXME for now (should be removed when going stable)
