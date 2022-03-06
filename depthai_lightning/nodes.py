@@ -228,6 +228,7 @@ class ColorCamera(Camera, InputOutput):
         fps=30,
         rotate=False,
         preview_size=(300, 300),
+        isp_scale=(1, 1),
     ):
         """Create a depthai color camera
 
@@ -247,9 +248,12 @@ class ColorCamera(Camera, InputOutput):
         self.fps = fps
         self.preview_size = preview_size
         self.name = name
+        self.isp_scale = isp_scale
 
+        self.cam.setBoardSocket(dai.CameraBoardSocket.RGB)
         self.cam.setResolution(ColorCamera.rgb_res_opts.get(self.resolution))
         self.cam.setPreviewSize(*self.preview_size)
+        self.cam.setIspScale(*self.isp_scale)
 
         # Optional, set manual focus. 255: macro (8cm), about 120..130: infinity
         # if args.lens_position >= 0:
