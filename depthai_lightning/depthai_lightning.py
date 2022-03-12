@@ -54,6 +54,7 @@ class PipelineManager:
             index = 0
             while temp_name in self.xstream_names:
                 temp_name = f"{name}_{index}"
+                index += 1
 
             logging.info("Rename requested stream: %s -> %s", name, temp_name)
 
