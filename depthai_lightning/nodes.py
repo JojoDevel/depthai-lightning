@@ -887,7 +887,7 @@ class LiveView(Node):
 
         # TODO: this section is ugly. Should be handled in the nodes (ColorCamera, StereoDepth and MonoCamera)
         if data_modifier is None and isinstance(node, ColorCamera):
-            if output_name == "preview":
+            if output_name in ["preview", "video"]:
                 self.data_modifier = preview_modifier
             elif output_name == "isp":
                 self.data_modifier = isp_modifier
@@ -902,7 +902,7 @@ class LiveView(Node):
 
         assert (
             self.data_modifier
-        ), "please a modifier to convert depthai data package to an opencv image"
+        ), "please specify a modifier to convert depthai data package to an opencv image"
 
         assert not output_name is None
 
