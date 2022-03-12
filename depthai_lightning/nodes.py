@@ -341,6 +341,7 @@ class StereoConfig:
         default_profile_preset=dai.node.StereoDepth.PresetMode.HIGH_DENSITY,
         median_filter=dai.StereoDepthProperties.MedianFilter.KERNEL_3x3,
         depth_align=dai.CameraBoardSocket.RGB,
+        input_resolution=None,
     ):
 
         self.rectify_edge_fill_color = rectify_edge_fill_color
@@ -350,6 +351,8 @@ class StereoConfig:
         self.default_profile_preset = default_profile_preset
         self.median_filter = median_filter
         self.depth_align = depth_align
+
+        self.input_resolution = input_resolution
 
         assert not (
             subpixel and extended_disparity
@@ -383,6 +386,9 @@ class StereoDepth(Node):
 
         self.stereo = self.pm.pipeline.create(dai.node.StereoDepth)
 
+        self.leftCam = leftCam
+        self.rightCam = rightCam
+
         # linking outputs of mono cameras to the stereo node
         leftCam.linkTo(self, MonoCamera.DEFAULT_OUT_STREAM, "left")
         rightCam.linkTo(self, MonoCamera.DEFAULT_OUT_STREAM, "right")
@@ -394,6 +400,9 @@ class StereoDepth(Node):
         self.stereo.setDefaultProfilePreset(config.default_profile_preset)
         self.stereo.initialConfig.setMedianFilter(config.median_filter)
         self.stereo.setDepthAlign(config.depth_align)
+
+        if config.input_resolution:
+            self.stereo.setInputResolution(*config.input_resolution)
 
     @property
     def inputs(self):
