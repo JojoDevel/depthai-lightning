@@ -14,7 +14,6 @@ DepthAI Lightning is a high-level library for [DepthAI](https://github.com/luxon
 
 
 ## Features
-***
 
 - **High-level node**: Use high-level nodes that hide depthai complexities
 - **Shorter code**: Our [examples](examples/) provide short code snippets for using OAK-D devices.
@@ -24,6 +23,5 @@ DepthAI Lightning is a high-level library for [DepthAI](https://github.com/luxon
 Contributions are very welcome! Just open issues and get in touch.
 
 ## Credits
-***
 
 This package was created with [Cookiecutter](https://github.com/audreyr/cookiecutter) and the [`audreyr/cookiecutter-pypackage`](https://github.com/audreyr/cookiecutter-pypackage) project template.
