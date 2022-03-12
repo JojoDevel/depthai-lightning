@@ -2,6 +2,7 @@
 DepthAI Lightning
 =================
 
+|Build badge|
 
 .. image:: https://img.shields.io/pypi/v/depthai_lightning.svg
         :target: https://pypi.python.org/pypi/depthai_lightning
@@ -35,3 +36,6 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
 .. _DepthAI: https://github.com/luxonis/depthai-python.git
+
+.. |Build badge| image:: https://github.com/github/docs/actions/workflows/python-app.yml/badge.svg
+   :target:
