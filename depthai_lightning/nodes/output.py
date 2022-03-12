@@ -2,6 +2,7 @@
 
 
 from enum import Enum
+from pathlib import Path
 from typing import List
 
 import cv2
@@ -80,7 +81,7 @@ class VideoEncoder(Node, InputOutput):
     def __init__(
         self,
         pm: PipelineManager,
-        filename: str,
+        filename: Path,
         econding_config: EncodingConfig,
         cam: Camera,
         add_codec_to_filename=True,
@@ -89,7 +90,7 @@ class VideoEncoder(Node, InputOutput):
 
         Args:
             pm (PipelineManager): associated pipeline manager
-            filename (str): file to write video stream to.
+            filename (Path): file to write video stream to.
             econding_config (EncodingConfig): configuration for video encoder.
             cam (Camera): camera used for encoding.
             add_codec_to_filename (bool, optional): adds the codec as extension (e.g. '.h264'). Defaults to True.
@@ -98,8 +99,7 @@ class VideoEncoder(Node, InputOutput):
         self.encoding_config = econding_config
         self.cam = cam
         self.filename = filename
-        if add_codec_to_filename:
-            self.filename += "." + self.encoding_config.codec.name.lower()
+        self.add_codec_to_filename = add_codec_to_filename
 
         # create encoder
         # Create XLinkOutputs for the stream
@@ -118,6 +118,11 @@ class VideoEncoder(Node, InputOutput):
         self.queue = None
 
     def activate(self, device: dai.Device):
+        if self.add_codec_to_filename:
+            self.filename = self.filename.with_suffix(
+                "." + self.encoding_config.codec.name.lower()
+            )
+
         self.queue = device.getOutputQueue(
             name=self.output_stream_name, maxSize=4, blocking=False
         )
