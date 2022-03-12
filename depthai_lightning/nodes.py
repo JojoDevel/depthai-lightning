@@ -2,6 +2,7 @@
 """
 
 import os
+from abc import ABC
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -481,11 +482,35 @@ class StreamWrapper(InputOutput):
         return self.input_streams[name]
 
 
-class Camera(Node):
+class Camera(Node, InputOutput, ABC):
     """Basic camera node"""
 
+    def __init__(self, pm: PipelineManager, fps: int, default_output: str = None):
+        """Create camera object
 
-class MonoCamera(Camera, InputOutput):
+        Args:
+            pm (PipelineManager): the pipeline manager for this camera
+            fps (int): recording framerate
+            default_output (str, optional): Name of the default output stream. Defaults to None.
+        """
+        super().__init__(pm)
+
+        self._fps = fps
+        self.default_output = default_output
+
+    def get_default_output(self) -> str:
+        """
+        Returns:
+            str: the name of the default output stream
+        """
+        return self.default_output
+
+    @property
+    def fps(self) -> int:
+        return self._fps
+
+
+class MonoCamera(Camera):
     """Mono Camera implementation"""
 
     DEFAULT_OUT_STREAM = "out"
@@ -504,9 +529,8 @@ class MonoCamera(Camera, InputOutput):
         res_lower: int,
         fps: int = 30,
     ):
-        super().__init__(pm)
+        super().__init__(pm, fps, MonoCamera.DEFAULT_OUT_STREAM)
 
-        self.fps = fps
         self.socket = socket
         self.res = res_lower
 
@@ -543,7 +567,7 @@ class MonoCamera(Camera, InputOutput):
         raise ValueError(f"Do not know output stream {name}")
 
 
-class ColorCamera(Camera, InputOutput):
+class ColorCamera(Camera):
     """High-level node for the depthai camera"""
 
     rgb_res_opts = {
@@ -572,12 +596,11 @@ class ColorCamera(Camera, InputOutput):
             rotate (bool, optional): Rotate camera image by 180 degrees. Defaults to False.
             preview_size (Tuple[int, int]): size of the camera preview.
         """
-        super().__init__(pm)
+        super().__init__(pm, fps, "video")
 
         self.cam = pm.pipeline.createColorCamera()
         self.resolution = resolution
         self.rotate = rotate
-        self.fps = fps
         self.preview_size = preview_size
         self.name = name
         self.isp_scale = isp_scale
@@ -597,7 +620,7 @@ class ColorCamera(Camera, InputOutput):
 
     @property
     def outputs(self):
-        return ["preview", "raw", "isp"]
+        return ["preview", "raw", "isp", "video"]
 
     @property
     def inputs(self):
