@@ -48,7 +48,7 @@ if __name__ == "__main__":
     pm = PipelineManager()
 
     # create replay node to read streams from files
-    rp = Replay(pm, args.p)
+    rp = Replay(pm, args.path)
 
     # create stereo node based on replay inputs
     stereo = StereoDepth(
