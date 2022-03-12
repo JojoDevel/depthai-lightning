@@ -28,6 +28,7 @@ Features
 --------
 
 - **High-level node**: Use high-level nodes that hide depthai complexities
+- **Shorter code**: Our examples_ provide short code snippets for using OAK-D devices.
 
 Credits
 -------
@@ -37,6 +38,7 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
 .. _DepthAI: https://github.com/luxonis/depthai-python.git
+.. _examples examples/
 
 .. |Build badge| image:: https://github.com/github/docs/actions/workflows/python-app.yml/badge.svg
    :target:
