@@ -2,8 +2,8 @@
 DepthAI Lightning
 =================
 
-.. image:: https://github.com/JojoDevel/depthai-lightning/actions/workflows/python-app.yml/badge.svg
-        :target:
+.. image:: https://github.com/JojoDevel/depthai-lightning/actions/workflows/build.yml/badge.svg
+        :target: https://github.com/JojoDevel/depthai-lightning/actions/workflows/build.yml/badge
 
 .. image:: https://img.shields.io/pypi/v/depthai_lightning.svg
         :target: https://pypi.python.org/pypi/depthai_lightning
