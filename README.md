@@ -1,4 +1,4 @@
-# DepthAI Lightning
+# :zap: DepthAI Lightning :zap:
 
 [![Build workflow](https://github.com/jojodevel/depthai-lightning/workflows/build/badge.svg)](https://github.com/JojoDevel/depthai-lightning/actions)
 ![Pypi availability](https://img.shields.io/pypi/v/depthai_lightning.svg)
