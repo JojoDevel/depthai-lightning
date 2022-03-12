@@ -1,5 +1,7 @@
 # DepthAI Lightning
 
+[![Build workflow](https://github.com/JojoDevel/depthai-lightning/actions/workflows/build.yml/badge.svg)](https://github.com/JojoDevel/depthai-lightning/)
+
 ![Build workflow](https://github.com/JojoDevel/depthai-lightning/actions/workflows/build.yml/badge.svg)
 ![Pypi availability](https://img.shields.io/pypi/v/depthai_lightning.svg)
 ![Readthedocs](https://readthedocs.org/projects/depthai-lightning/badge/?version=latest)
