@@ -16,7 +16,7 @@ DepthAI Lightning
 
 
 
-DepthAI Lightning is a high-level library for [DepthAI](https://github.com/luxonis/depthai-python.git). It aims to reduce the code size for simple applications and to accelerate the development for more complex pipelines.
+DepthAI Lightning is a high-level library for DepthAI_. It aims to reduce the code size for simple applications and to accelerate the development for more complex pipelines.
 
 * Free software: MIT license
 * Documentation: https://depthai-lightning.readthedocs.io. (not yet)
@@ -34,3 +34,4 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+.. _DepthAI: https://github.com/luxonis/depthai-python.git
