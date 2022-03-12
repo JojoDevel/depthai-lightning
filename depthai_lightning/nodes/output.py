@@ -3,7 +3,7 @@
 
 from enum import Enum
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import cv2
 import depthai as dai
@@ -262,3 +262,74 @@ class FPSMeasure(Node):
 
 class ImageStream(Node):
     """image stream node"""
+
+
+class MultiStreamRecorder(Node):
+    """High-level node for recording multiple camera streams into compressed streams"""
+
+    def __init__(
+        self,
+        pm: PipelineManager,
+        nodes: Dict[str, InputOutput],
+        path=Path("recordings"),
+    ):
+        """
+
+        Args:
+            pm (PipelineManager): current pipeline manager
+            nodes (Dict[str, InputOutput]): discribing the camera streams to save with (filename, camera object) format.
+            path (_type_, optional): folder for stored recordings. Will be create if not existing. Defaults to Path("recordings").
+        """
+        super().__init__(pm)
+
+        self.fps = 30
+        self.quality = EncodingConfig.HIGH
+        self.path = path
+        self.nodes = nodes
+
+        self.encoders: Dict[str, VideoEncoder] = {}
+        for node_name, node in self.nodes.items():
+            self.encoders[node_name] = VideoEncoder(
+                pm, path / node_name, EncodingConfig.LOW, node, True
+            )
+
+        self.device = None
+        self.mxid = None
+
+    def create_folder(self, path: Path, mxid: str) -> Path:
+        """Creates a folder based on a path and the oak-d device id
+
+        Args:
+            path (Path): proposed path
+            mxid (str): device id
+
+        Returns:
+            Path: the unique and existing path object
+        """
+        i = 0
+        while True:
+            i += 1
+            recordings_path = path / f"{i}-{str(mxid)}"
+            if not recordings_path.is_dir():
+                recordings_path.mkdir(parents=True, exist_ok=False)
+                return recordings_path
+
+    def activate(self, device: dai.Device):
+        self.device = device
+
+        # create the path with device id
+        self.mxid = device.getMxId()
+        self.path = self.create_folder(self.path, self.mxid)
+
+        # update encoder paths
+        for node_name, encoder in self.encoders.items():
+            encoder.filename = self.path / node_name
+
+        # store calibration data
+        calibData = device.readCalibration()
+        calibData.eepromToJsonFile(str(self.path / "calib.json"))
+
+    def write(self):
+        """Store all encoders to files"""
+        for encoder in self.encoders.values():
+            encoder.write()
