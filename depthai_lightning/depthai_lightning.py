@@ -16,6 +16,19 @@ class PipelineManager:
 
         self.nodes = []
 
+    def __enter__(self):
+        self.device = self.createDevice()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        # exit OAK-D device
+        self.device.__exit__(exc_type, exc_value, exc_traceback)
+        self.device = None
+
+        # close all nodes
+        for node in self.nodes:
+            node.deactivate()
+
     def createDevice(self):
         self.device = dai.Device(self.pipeline)
 

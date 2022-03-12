@@ -142,6 +142,9 @@ class Node:
     def activate(self, device: dai.Device):
         pass
 
+    def deactivate(self):
+        pass
+
 
 ## input
 class Photo(Node):
