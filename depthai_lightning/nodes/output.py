@@ -1,9 +1,8 @@
 """ High-level output nodes """
-
+from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List
 
 import cv2
 import depthai as dai
@@ -146,7 +145,7 @@ class VideoEncoder(Node, InputOutput):
         self.output_stream.write(data)
 
     @property
-    def inputs(self) -> List[str]:
+    def inputs(self) -> list[str]:
         return self._inputs
 
     def get_input(self, name: str):
@@ -154,7 +153,7 @@ class VideoEncoder(Node, InputOutput):
         return getattr(self.encoder, name)
 
     @property
-    def outputs(self) -> List[str]:
+    def outputs(self) -> list[str]:
         return []
 
     def get_output(self, name: str):
@@ -270,8 +269,9 @@ class MultiStreamRecorder(Node):
     def __init__(
         self,
         pm: PipelineManager,
-        nodes: Dict[str, InputOutput],
+        nodes: dict[str, InputOutput],
         path=Path("recordings"),
+        quality: EncodingConfig | dict[str, EncodingConfig] = EncodingConfig.LOW,
     ):
         """
 
@@ -279,6 +279,7 @@ class MultiStreamRecorder(Node):
             pm (PipelineManager): current pipeline manager
             nodes (Dict[str, InputOutput]): discribing the camera streams to save with (filename, camera object) format.
             path (_type_, optional): folder for stored recordings. Will be create if not existing. Defaults to Path("recordings").
+            quality (EncodingConfig | Dict[str, EncodingConfig], optional): Either EncodingConfig that is applied to every camera stream or a config per stream (stream name, config). Defaults to EncodingConfig.LOW (low quality for all streams).
         """
         super().__init__(pm)
 
@@ -286,11 +287,21 @@ class MultiStreamRecorder(Node):
         self.quality = EncodingConfig.HIGH
         self.path = path
         self.nodes = nodes
+        self.quality = quality
 
-        self.encoders: Dict[str, VideoEncoder] = {}
+        # check wheter a single config is applied
+        if isinstance(quality, EncodingConfig):
+            # copy the config for every node
+            temp_quality = {}
+            for node_name in nodes.keys():
+                temp_quality[node_name] = quality
+
+            self.quality = temp_quality
+
+        self.encoders: dict[str, VideoEncoder] = {}
         for node_name, node in self.nodes.items():
             self.encoders[node_name] = VideoEncoder(
-                pm, path / node_name, EncodingConfig.LOW, node, True
+                pm, path / node_name, self.quality[node_name], node, True
             )
 
         self.device = None
