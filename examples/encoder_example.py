@@ -1,6 +1,8 @@
 """Simple example for camera usage
 """
 
+from pathlib import Path
+
 import cv2
 
 from depthai_lightning import PipelineManager
@@ -17,7 +19,7 @@ if __name__ == "__main__":
     # live view for video
     liveView = LiveView(pm, cam, "video")  # or raw, preview
     # encoder for video
-    enc = VideoEncoder(pm, "record", EncodingConfig.LOW, cam, True)
+    enc = VideoEncoder(pm, Path("record"), EncodingConfig.LOW, cam, True)
 
     # create the pipeline
     with pm:
