@@ -93,7 +93,7 @@ if __name__ == "__main__":
         pm,
         stereo,
         "disparity",
-        data_modifier=partial(disparity_modifier, stereo=stereo),
+        data_modifier=partial(disparity_modifier, stereo_node=stereo),
     )
 
     with pm.createDevice() as device:
