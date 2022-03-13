@@ -65,6 +65,9 @@ class EncodingConfig(Enum):
         elif self.bitrate:
             dai_encoder.setBitrateKbps(self.bitrate)
 
+    def __repr__(self) -> str:
+        return f"codec: {self.codec}, quality: {self.quality}, bitrate: {self.bitrate}"
+
     # some default configs
     BEST = (Codec.MJPEG, 100, None)  # Lossless MJPEG
     HIGH = (Codec.MJPEG, 97, None)  # MJPEG Quality=97 (default)
