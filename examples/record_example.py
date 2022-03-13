@@ -9,6 +9,7 @@ import depthai as dai
 from depthai_lightning.depthai_lightning import PipelineManager
 from depthai_lightning.nodes import ColorCamera, LiveView, MonoCamera
 from depthai_lightning.nodes.output import EncodingConfig, MultiStreamRecorder
+from depthai_lightning.utils import FPSCounter
 
 if __name__ == "__main__":
 
@@ -53,11 +54,16 @@ if __name__ == "__main__":
         # create color camera preview
         lv_preview = LiveView(pm, color, "preview")
 
+    fpsCounter = FPSCounter()
+
     with pm:
         print(f"Start recording to {rc.path.absolute()} ...")
+        fpsCounter.start()
         while True:
             # write streams to files
             rc.write()
+            fpsCounter.tick()
+            fpsCounter.publish()
             if preview:
                 # show camera preview if requested
                 lv_preview.show()
