@@ -8,6 +8,11 @@ import cv2
 import depthai as dai
 
 from depthai_lightning.depthai_lightning import PipelineManager
+from depthai_lightning.nodes.modifiers import (
+    isp_modifier,
+    preview_modifier,
+    raw_modifier,
+)
 
 from .base import InputOutput, Node
 
@@ -434,6 +439,11 @@ class MonoCamera(Camera):
 
         raise ValueError(f"Do not know output stream {name}")
 
+    def get_data_modifier(self, output_name):
+        assert output_name in self.outputs
+
+        return preview_modifier
+
 
 class ColorCamera(Camera):
     """High-level node for the depthai camera"""
@@ -501,3 +511,13 @@ class ColorCamera(Camera):
         assert name in self.outputs
 
         return getattr(self.cam, name)
+
+    def get_data_modifier(self, output_name):
+        assert output_name in self.outputs
+
+        return {
+            "preview": preview_modifier,
+            "raw": raw_modifier,
+            "isp": isp_modifier,
+            "video": preview_modifier,
+        }[output_name]

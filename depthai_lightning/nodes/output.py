@@ -10,9 +10,7 @@ import depthai as dai
 from depthai_lightning.depthai_lightning import PipelineManager
 
 from .base import InputOutput, Node
-from .input import Camera, ColorCamera, MonoCamera
-from .modifiers import isp_modifier, preview_modifier, raw_modifier
-from .processing import StereoDepth
+from .input import Camera
 
 
 class Codec(Enum):
@@ -201,19 +199,11 @@ class LiveView(Node):
         self.stream_name = output_name
 
         # TODO: this section is ugly. Should be handled in the nodes (ColorCamera, StereoDepth and MonoCamera)
-        if data_modifier is None and isinstance(node, ColorCamera):
-            if output_name in ["preview", "video"]:
-                self.data_modifier = preview_modifier
-            elif output_name == "isp":
-                self.data_modifier = isp_modifier
-            elif output_name == "raw":
-                self.data_modifier = raw_modifier
-        elif data_modifier is None and isinstance(node, StereoDepth):
-            if output_name == "depth":
-                self.data_modifier = preview_modifier
-        elif data_modifier is None and isinstance(node, MonoCamera):
-            if output_name == "out":
-                self.data_modifier = preview_modifier
+        if data_modifier is None:
+            assert hasattr(
+                node, "get_data_modifier"
+            ), "Please specify a data modifier as node does not support retrieval"
+            self.data_modifier = node.get_data_modifier(output_name)
 
         assert (
             self.data_modifier

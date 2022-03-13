@@ -3,7 +3,8 @@
 import depthai as dai
 
 from depthai_lightning.depthai_lightning import PipelineManager
-from depthai_lightning.nodes.input import MonoCamera
+from depthai_lightning.nodes.modifiers import preview_modifier
+from .input import MonoCamera
 
 from .base import Node
 
@@ -110,6 +111,11 @@ class StereoDepth(Node):
     def get_output(self, name: str):
         assert name in self.outputs
         return getattr(self.stereo, name)
+
+    def get_data_modifier(self, output_name):
+        assert output_name in self.outputs
+
+        return preview_modifier
 
 
 class ImageCrop(Node):
