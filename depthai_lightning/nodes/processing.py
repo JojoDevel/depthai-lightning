@@ -89,6 +89,7 @@ class YoloDetector(ObjectDetector):
         self._inputs = {"input": detectionNetwork.input}
         self._outputs = {
             "rgb": detectionNetwork.passthrough,
+            "passthrough": detectionNetwork.passthrough,
             "out": detectionNetwork.out,
         }
 
