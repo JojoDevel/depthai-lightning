@@ -1,9 +1,9 @@
 """ High-level data processing nodes"""
+from __future__ import annotations
 
 import json
 from abc import ABC
 from pathlib import Path
-from typing import List
 
 import cv2
 import depthai as dai
@@ -105,7 +105,7 @@ class YoloDetector(ObjectDetector):
         self.last_frame = None
 
     @property
-    def inputs(self) -> List[str]:
+    def inputs(self) -> list[str]:
         return self._inputs.keys()
 
     def get_input(self, name: str):
@@ -113,7 +113,7 @@ class YoloDetector(ObjectDetector):
         return self._inputs[name]
 
     @property
-    def outputs(self) -> List[str]:
+    def outputs(self) -> list[str]:
         return self._outputs.keys()
 
     def get_output(self, name: str):
@@ -217,8 +217,193 @@ class SpatialDetector(ObjectDetector):
     """Spatial detector node"""
 
 
-class ObjectTracker(Node):
+class ObjectTrackerConfig:
+    """Configuration for object tracking"""
+
+    def __init__(
+        self,
+        labels: list[str | int] = None,
+        tracker_type: dai.TrackerType = dai.TrackerType.ZERO_TERM_COLOR_HISTOGRAM,
+        id_assignment_policy=dai.TrackerIdAssignmentPolicy.SMALLEST_ID,
+    ) -> None:
+        """Create object tracker config
+
+        Args:
+            labels (List[str  |  int], optional): List of labes that are tracked. Both label index (int) and label name (str) are allowed. Defaults to None.
+            type (dai.TrackerType, optional): method to track detected objects. Defaults to dai.TrackerType.ZERO_TERM_COLOR_HISTOGRAM.
+            id_assignment_policy (_type_, optional): assignment policy for new objects. Defaults to dai.TrackerIdAssignmentPolicy.SMALLEST_ID.
+        """
+        self.labels = labels
+        self.tracker_type = tracker_type
+        self.id_assignment_policy = id_assignment_policy
+
+
+class ObjectTracker(Node, InputOutput):
     """Object tracking node"""
+
+    def __init__(
+        self,
+        pm: PipelineManager,
+        od: ObjectDetector,
+        cam: ColorCamera = None,
+        use_full_camera_view=False,
+        config=ObjectTrackerConfig(),
+    ):
+        """Create object tracker node
+
+        Args:
+            pm (PipelineManager): the global pipeline manager.
+            od (ObjectDetector): object detector node.
+            cam (ColorCamera, optional): camera node can be used for visualization on higher resolution image stream. Not needed for tracking. Defaults to None.
+            use_full_camera_view (bool, optional): use the camera to visualize tracking on full view. Defaults to False.
+            config (_type_, optional): static configuration for tracking. Defaults to ObjectTrackerConfig().
+
+        Raises:
+            ValueError: _description_
+        """
+        super().__init__(pm)
+
+        self.od = od
+
+        # create depthai object tracker
+        self.objectTracker = objectTracker = pm.pipeline.create(dai.node.ObjectTracker)
+
+        if config.labels:
+            # convert possible string labels to integers
+            integer_labels = list(
+                map(
+                    lambda l: l if isinstance(l, int) else self.od.labels.index(l),
+                    config.labels,
+                )
+            )
+            # set the tracker to track only some labels
+            objectTracker.setDetectionLabelsToTrack(integer_labels)
+
+        # possible tracking types: ZERO_TERM_COLOR_HISTOGRAM, ZERO_TERM_IMAGELESS, SHORT_TERM_IMAGELESS, SHORT_TERM_KCF
+        objectTracker.setTrackerType(config.tracker_type)
+        # take the smallest ID when new object is tracked, possible options: SMALLEST_ID, UNIQUE_ID
+        objectTracker.setTrackerIdAssignmentPolicy(config.id_assignment_policy)
+
+        # define intputs and outputs
+        self._inputs = {
+            "inputTrackerFrame": objectTracker.inputTrackerFrame,
+            "inputDetectionFrame": objectTracker.inputDetectionFrame,
+            "inputDetections": objectTracker.inputDetections,
+        }
+        self._outputs = {
+            "passthroughTrackerFrame": objectTracker.passthroughTrackerFrame,
+            "out": objectTracker.out,
+        }
+
+        # view of tracker frame
+        self.lv_tracker_frame = LiveView(
+            pm, self, "passthroughTrackerFrame", lambda d: d
+        )
+
+        # link vidoe frame from object detector to me
+        if use_full_camera_view and cam:
+            # get video stream from camera default
+            cam.linkTo(self, cam.get_default_output(), "inputTrackerFrame")
+        elif use_full_camera_view:
+            # forgot to specify camera
+            raise ValueError("You need to specify a camera for that")
+        else:
+            # get the video stream from object detector passthrough
+            od.linkTo(self, "passthrough", "inputTrackerFrame")
+        # link detection frame from object detector to me
+        od.linkTo(self, "passthrough", "inputDetectionFrame")
+
+        # link detections to tracker input
+        od.linkTo(self, "out", "inputDetections")
+
+        # output for object tracker
+        self.lv_tracker_output = LiveView(pm, self, "out", lambda d: d)
+
+    @property
+    def inputs(self):
+        return self._inputs.keys()
+
+    def get_input(self, name: str):
+        return self._inputs[name]
+
+    @property
+    def outputs(self):
+        return self._outputs.keys()
+
+    def get_output(self, name: str):
+        return self._outputs[name]
+
+    def get_frame(self):
+        """Read frame from device"""
+        return self.lv_tracker_frame.get().getCvFrame()
+
+    def get_tracklets(self):
+        """Read tracklets from device"""
+        return self.lv_tracker_output.get().tracklets
+
+    def draw_frame(self, frame=None, tracklets=None, show=True):
+        """Draw the tracklets on frame
+
+        Args:
+            frame (_type_, optional): frame to use for visualization. If none we try to grab it from the object detector. Defaults to None.
+            tracklets (_type_, optional): tracklets to visualize. If not specified we get it from the tracker node. Defaults to None.
+        """
+        if frame is None:
+            # get frame
+            frame = self.lv_tracker_frame.get().getCvFrame()
+        if tracklets is None:
+            # get tracklet
+            tracklets = self.lv_tracker_output.get().tracklets
+
+        color = (255, 0, 0)
+        for t in tracklets:
+            # loop over all tracklets
+            roi = t.roi.denormalize(frame.shape[1], frame.shape[0])
+
+            # copute the bounding box coordinates
+            x1 = int(roi.topLeft().x)
+            y1 = int(roi.topLeft().y)
+            x2 = int(roi.bottomRight().x)
+            y2 = int(roi.bottomRight().y)
+
+            # obtain the label (at best in string coordinates)
+            try:
+                label = self.od.labels[t.label]
+            except ValueError:
+                label = t.label
+
+            # draw onto frame
+            cv2.putText(
+                frame,
+                str(label),
+                (x1 + 10, y1 + 20),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                255,
+            )
+            cv2.putText(
+                frame,
+                f"ID: {[t.id]}",
+                (x1 + 10, y1 + 35),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                255,
+            )
+            cv2.putText(
+                frame,
+                t.status.name,
+                (x1 + 10, y1 + 50),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                255,
+            )
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
+
+        if show:
+            # show frame
+            cv2.imshow("tracker", frame)
+
+        return frame
 
 
 class StereoConfig:
