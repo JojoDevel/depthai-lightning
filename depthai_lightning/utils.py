@@ -3,6 +3,8 @@ Utilities module
 """
 import time
 
+import cv2
+
 
 class FPSCounter:
     """Counts frame events to compute fps"""
@@ -35,13 +37,23 @@ class FPSCounter:
         self.start_time = time.time()
         self.counter = 0
 
-    def publish(self, every_n_seconds=5, reset_on_publish=True):
+    def publish(self, frame=None, every_n_seconds=5, reset_on_publish=True):
         """Publish fps
 
         Args:
             every_n_seconds (int, optional): publishes every n seconds. Defaults to 5.
             reset_on_publish (bool, optional): resets the counter after publishing. Defaults to True.
         """
+        if frame is not None:
+            color = (255, 255, 255)
+            cv2.putText(
+                frame,
+                f"NN fps: {self.fps:.2f}",
+                (2, frame.shape[0] - 4),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.4,
+                color,
+            )
         if self.last_publish is None or (
             time.time() - self.last_publish > every_n_seconds
         ):
