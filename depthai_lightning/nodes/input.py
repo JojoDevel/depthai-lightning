@@ -2,7 +2,7 @@
 import os
 from abc import ABC
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import cv2
 import depthai as dai
@@ -25,20 +25,33 @@ class Video(Node):
     """Video Input node"""
 
 
-class Replay(Node):
+class Replay(Node, InputOutput):
     """Node to replay recorded material into the OAK-D device.
 
     Includes code from https://github.com/luxonis/depthai-experiments/tree/master/gen2-record-replay
     """
 
-    def __init__(self, pm: PipelineManager, path: str):
+    def __init__(
+        self,
+        pm: PipelineManager,
+        path: str,
+        streams: List[str] = None,
+        keep_ar=True,
+        color_size: Tuple[int, int] = None,
+    ):
         """Create a replay node
 
         Args:
             pm (PipelineManager): the global pipeline manager.
             path (str): path to the folder containing the stream recordings
+            streams (List[str]): list of allowed streams
+            keep_ar (bool): Whether to keep the color video aspect ratio (will lead to cropping)
+            color_size (Tuple[int, int]): The new size of the color stream
         """
         super().__init__(pm)
+
+        if streams is None:
+            streams = ["color", "left", "right", "disparity", "depth"]
 
         self.path = Path(path).resolve().absolute()
 
@@ -52,7 +65,7 @@ class Replay(Node):
         # Disparity shouldn't get streamed to the device, nothing to do with it.
         self.stream_types = ["color", "left", "right", "depth"]
 
-        file_types = ["color", "left", "right", "disparity", "depth"]
+        file_types = streams
         extensions = ["mjpeg", "avi", "mp4", "h265", "h264"]
 
         for file in os.listdir(path):
@@ -70,14 +83,14 @@ class Replay(Node):
 
         # Read basic info about the straems (resolution of streams etc.)
         for name, cap in self.cap.items():
-            self.size[name] = self.get_size(cap)
+            self.size[name] = self.__get_size(cap)
 
-        self.color_size: Tuple[int, int] = None
+        self.color_size: Tuple[int, int] = color_size
 
         # keep the aspect ratio
-        self.keep_ar = True
+        self.keep_ar = keep_ar
 
-        self.init_pipeline()
+        self.__init_pipeline()
 
     @property
     def outputs(self):
@@ -87,6 +100,13 @@ class Replay(Node):
         assert name in self.nodes
 
         return self.nodes[name]
+
+    @property
+    def inputs(self):
+        return []
+
+    def get_input(self, name: str):
+        raise ValueError("Node does not have any inputs")
 
     @property
     def left(self) -> InputOutput:
@@ -115,25 +135,37 @@ class Replay(Node):
             input_streams={}, output_streams={"out": self.nodes["right"].out}
         )
 
-    def create_queues(self, device):
+    @property
+    def color(self) -> InputOutput:
+        assert "color" in self.nodes, "Missing color camera stream!"
+
+        return StreamWrapper(
+            input_streams={},
+            output_streams={
+                "video": self.nodes["color"].out,
+                "preview": self.nodes["color"].out,
+            },
+        )
+
+    def __create_queues(self, device):
         self.queues = {}
         for name in self.cap:
             if name in self.stream_types:
                 self.queues[name + "_in"] = device.getInputQueue(name + "_in")
 
     def activate(self, device: dai.Device):
-        self.create_queues(device)
+        self.__create_queues(device)
 
     def perform(self):
         self.send_frames()
 
-    def get_size(self, cap):
+    def __get_size(self, cap):
         return (
             int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
             int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
         )
 
-    def get_max_size(self, name):
+    def __get_max_size(self, name):
         total = self.size[name][0] * self.size[name][1]
         if name == "color":
             total *= 3  # 3 channels
@@ -151,20 +183,20 @@ class Replay(Node):
             if name in ["left", "right", "disparity"] and len(frame.shape) == 3:
                 self.frames[name] = frame[:, :, 0]  # All 3 planes are the same
 
-            self.send_frame(self.frames[name], name)
+            self.__send_frame(self.frames[name], name)
 
         return True
 
-    def create_stream(self, name: str):
+    def __create_stream(self, name: str):
         pipeline = self.pm.pipeline
         node = pipeline.createXLinkIn()
-        node.setMaxDataSize(self.get_max_size(name))
+        node.setMaxDataSize(self.__get_max_size(name))
         stream_name = f"{name}_in"
         node.setStreamName(stream_name)
 
         return node
 
-    def init_pipeline(self):
+    def __init_pipeline(self):
         pipeline = self.pm.pipeline
 
         mono = ("left" in self.cap) and ("right" in self.cap)
@@ -174,12 +206,12 @@ class Replay(Node):
 
         if "color" in self.cap:
             # create color stream
-            self.nodes["color"] = self.create_stream("color")
+            self.nodes["color"] = self.__create_stream("color")
 
         if mono:
             # create mono streams
-            self.nodes["left"] = self.create_stream("left")
-            self.nodes["right"] = self.create_stream("right")
+            self.nodes["left"] = self.__create_stream("left")
+            self.nodes["right"] = self.__create_stream("right")
 
             # stereo_node = pipeline.createStereoDepth()
             # stereo_node.setInputResolution(self.size['left'][0], self.size['left'][1])
@@ -214,7 +246,7 @@ class Replay(Node):
 
             self.nodes["depth"] = depth_node
 
-    def to_planar(self, arr, shape=None):
+    def __to_planar(self, arr, shape=None):
         if shape is not None:
             arr = cv2.resize(arr, shape)
         return arr.transpose(2, 0, 1).flatten()
@@ -235,7 +267,7 @@ class Replay(Node):
                 self.frames[name] = frame
         return len(self.frames) == 0
 
-    def send_frame(self, frame, name: str):
+    def __send_frame(self, frame, name: str):
         """Send frame to OAK-D
 
         Args:
@@ -245,15 +277,15 @@ class Replay(Node):
         q_name = name + "_in"
         if q_name in self.queues:
             if name == "color":
-                self.send_color(self.queues[q_name], frame)
+                self.__send_color(self.queues[q_name], frame)
             elif name == "left":
-                self.send_mono(self.queues[q_name], frame, False)
+                self.__send_mono(self.queues[q_name], frame, False)
             elif name == "right":
-                self.send_mono(self.queues[q_name], frame, True)
+                self.__send_mono(self.queues[q_name], frame, True)
             elif name == "depth":
-                self.send_depth(self.queues[q_name], frame)
+                self.__send_depth(self.queues[q_name], frame)
 
-    def send_mono(self, q, img, right):
+    def __send_mono(self, q, img, right):
         self.frames["right" if right else "left"] = img
         h, w = img.shape
         frame = dai.ImgFrame()
@@ -264,20 +296,20 @@ class Replay(Node):
         frame.setInstanceNum(2 if right else 1)
         q.send(frame)
 
-    def send_color(self, q, img):
+    def __send_color(self, q, img):
         # Resize/crop color frame as specified by the user
-        img = self.resize_color(img)
+        img = self.__resize_color(img)
         self.frames["color"] = img
         h, w, _ = img.shape
         frame = dai.ImgFrame()
         frame.setType(dai.RawImgFrame.Type.BGR888p)
-        frame.setData(self.to_planar(img))
+        frame.setData(self.__to_planar(img))
         frame.setWidth(w)
         frame.setHeight(h)
         frame.setInstanceNum(0)
         q.send(frame)
 
-    def send_depth(self, q, depth):
+    def __send_depth(self, q, depth):
         # TODO refactor saving depth. Reading will be from ROS bags.
 
         # print("depth size", type(depth))
@@ -294,7 +326,7 @@ class Replay(Node):
         frame.setInstanceNum(0)
         q.send(frame)
 
-    def resize_color(self, frame):
+    def __resize_color(self, frame):
         if self.color_size is None:
             # No resizing needed
             return frame
