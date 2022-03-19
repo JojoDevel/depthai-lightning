@@ -16,6 +16,7 @@ from depthai_lightning.nodes import (
     StereoDepth,
     preview_modifier,
 )
+from depthai_lightning.utils import FPSCounter
 
 
 def disp_mode(inData, disparity_multiplier: float):
@@ -48,7 +49,7 @@ if __name__ == "__main__":
     pm = PipelineManager()
 
     # create replay node to read streams from files
-    rp = Replay(pm, args.path)
+    rp = Replay(pm, args.path, streams=["left", "right"])
 
     # create stereo node based on replay inputs
     stereo = StereoDepth(
@@ -72,8 +73,11 @@ if __name__ == "__main__":
     )
     depth = LiveView(pm, stereo, "depth", preview_modifier)
 
+    fpsC = FPSCounter()
+
     # create device with pipeline
     with pm.createDevice() as device:
+        fpsC.start()
         while True:
             # send frames to device
             rp.send_frames()
@@ -83,6 +87,9 @@ if __name__ == "__main__":
             mono_right.show("right")
             disparity.show("disp")
             depth.show("depth")
+
+            fpsC.tick()
+            fpsC.publish()
 
             if cv2.waitKey(1) == ord("q"):
                 break
