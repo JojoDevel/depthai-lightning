@@ -245,8 +245,7 @@ class Replay(Node):
         q_name = name + "_in"
         if q_name in self.queues:
             if name == "color":
-                # self.send_color(self.queues[q_name], frame)
-                pass
+                self.send_color(self.queues[q_name], frame)
             elif name == "left":
                 self.send_mono(self.queues[q_name], frame, False)
             elif name == "right":
