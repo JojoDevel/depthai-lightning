@@ -68,11 +68,12 @@ class YoloDetector(ObjectDetector):
 
         detectionNetwork = pm.pipeline.create(dai.node.YoloDetectionNetwork)
 
-        assert camRgb.preview_size == (
-            W,
-            H,
-        ), f"Yolo network expects input size ({W}, {H}) but camera gives ({camRgb.preview_size[0]}, {camRgb.preview_size[1]})"
-        camRgb.cam.setInterleaved(False)
+        if isinstance(camRgb, ColorCamera):
+            assert camRgb.preview_size == (
+                W,
+                H,
+            ), f"Yolo network expects input size ({W}, {H}) but camera gives ({camRgb.preview_size[0]}, {camRgb.preview_size[1]})"
+            camRgb.cam.setInterleaved(False)
 
         # Network specific settings
         detectionNetwork.setConfidenceThreshold(confidenceThreshold)
