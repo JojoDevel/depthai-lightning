@@ -4,15 +4,24 @@ Utilities module
 import time
 
 import cv2
+import numpy as np
 
 
 class FPSCounter:
-    """Counts frame events to compute fps"""
+    """Counts frame events to compute fps (using median)"""
 
-    def __init__(self):
+    def __init__(self, max_size=30, method=np.median):
+        """_summary_
+
+        Args:
+            max_size (int, optional): Maximum size of the cached durations. Defaults to 30.
+            method (_type_, optional): method to compute average/median from list of cache durations. Defaults to np.median.
+        """
         self.start_time = None
         self.last_publish = None
-        self.counter = 0
+        self.durations = []
+        self.max_size = max_size
+        self.method = method
 
     def start(self):
         """Start time measuring"""
@@ -20,7 +29,10 @@ class FPSCounter:
 
     def tick(self):
         """Take note of a frame event"""
-        self.counter += 1
+        now = time.time()
+        self.durations.append(now - self.start_time)
+        self.start_time = now
+        self.durations = self.durations[-self.max_size :]
 
     @property
     def fps(self) -> float:
@@ -29,20 +41,19 @@ class FPSCounter:
         Returns:
             float: fps
         """
-        duration = time.time() - self.start_time
-        return self.counter / duration
+        return 1.0 / self.method(self.durations)
 
     def reset(self):
         """Reste the counter"""
         self.start_time = time.time()
-        self.counter = 0
+        self.durations = []
 
-    def publish(self, frame=None, every_n_seconds=5, reset_on_publish=True):
+    def publish(self, frame=None, every_n_seconds=5):
         """Publish fps
 
         Args:
+            frame (np.arry, optional): writes fps onto cv2 frame
             every_n_seconds (int, optional): publishes every n seconds. Defaults to 5.
-            reset_on_publish (bool, optional): resets the counter after publishing. Defaults to True.
         """
         if frame is not None:
             color = (255, 255, 255)
@@ -59,5 +70,3 @@ class FPSCounter:
         ):
             print(f"FPS: {self.fps}")
             self.last_publish = time.time()
-            if reset_on_publish:
-                self.reset()
