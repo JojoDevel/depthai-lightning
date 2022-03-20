@@ -1,8 +1,10 @@
 """ High-level input nodes """
+from __future__ import annotations
+
+import logging
 import os
 from abc import ABC
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import cv2
 import depthai as dai
@@ -14,7 +16,7 @@ from depthai_lightning.nodes.modifiers import (
     raw_modifier,
 )
 
-from .base import InputOutput, Node
+from .base import InputOutput, LazyXNode, Node
 
 
 class Photo(Node):
@@ -22,7 +24,139 @@ class Photo(Node):
 
 
 class Video(Node):
-    """Video Input node"""
+    """Video Input node: Allows to transfer video data to the device"""
+
+    def __init__(
+        self, pm: Node, path: Path | str, mode="color", resize_size=None, keep_ar=True
+    ):
+        super().__init__(pm)
+
+        if not isinstance(path, Path):
+            path = Path(path)
+
+        assert path.exists(), f"Video input {path} not found!"
+
+        self.mode = mode
+        self.cap = cv2.VideoCapture(str(path))
+
+        self.size = self.__get_size(self.cap)
+
+        self.last_frame = None
+        self.stream_name = None
+        self.input_queue = None
+        self.resize_size = resize_size
+        self.keep_ar = keep_ar
+
+        def xnode_creator():
+            node = self.__create_stream("video_input")
+
+            return node
+
+        def host_node_creator():
+            pass
+
+        self.node = LazyXNode(pm, xnode_creator, host_node_creator)
+
+    def __create_stream(self, name: str):
+        pipeline = self.pm.pipeline
+        node = pipeline.createXLinkIn()
+        node.setMaxDataSize(self.__get_max_size())
+        self.stream_name = self.pm.add_xstream_name(f"{name}_in")
+        node.setStreamName(self.stream_name)
+
+        return node
+
+    def __get_size(self, cap):
+        return (
+            int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        )
+
+    def __get_max_size(self):
+        total = self.size[0] * self.size[1]
+        if self.mode == "color":
+            total *= 3  # 3 channels
+        return total
+
+    def read_frame(self):
+        _, frame = self.cap.read()
+        return frame
+
+    def activate(self, device: dai.Device):
+        if self.node.node:
+            self.input_queue = device.getInputQueue(self.stream_name)
+
+    def send_frame(self, frame=None):
+        if frame is None:
+            frame = self.read_frame()
+        self.__send_color(self.input_queue, frame)
+
+    def __send_color(self, q, img):
+        # Resize/crop color frame as specified by the user
+        img = self.__resize_color(img)
+        self.last_frame = img
+        h, w, _ = img.shape
+        frame = dai.ImgFrame()
+        frame.setType(dai.RawImgFrame.Type.BGR888p)
+        frame.setData(self.__to_planar(img))
+        frame.setWidth(w)
+        frame.setHeight(h)
+        frame.setInstanceNum(0)
+        q.send(frame)
+
+    def __resize_color(self, frame):
+        if self.resize_size is None:
+            # No resizing needed
+            return frame
+
+        if not self.keep_ar:
+            # No need to keep aspect ratio, image will be squished
+            return cv2.resize(frame, self.resize_size)
+
+        h = frame.shape[0]
+        w = frame.shape[1]
+        desired_ratio = self.resize_size[0] / self.resize_size[1]
+        current_ratio = w / h
+
+        # Crop width/heigth to match the aspect ratio needed by the NN
+        if desired_ratio < current_ratio:  # Crop width
+            # Use full height, crop width
+            new_w = (desired_ratio / current_ratio) * w
+            crop = int((w - new_w) / 2)
+            preview = frame[:, crop : w - crop]
+        else:  # Crop height
+            # Use full width, crop height
+            new_h = (current_ratio / desired_ratio) * h
+            crop = int((h - new_h) / 2)
+            preview = frame[crop : h - crop, :]
+
+        return cv2.resize(preview, self.resize_size)
+
+    @property
+    def color(self):
+        if self.mode != "color":
+            logging.warning("You request color stream although not configured!")
+
+        return StreamWrapper(
+            input_streams={},
+            output_streams={
+                "video": self.node.out,
+                "preview": self.node.out,
+            },
+            default_output="video",
+        )
+
+    @property
+    def mono(self):
+        if self.mode != "mono":
+            logging.warning("You request mono stream although not configured!")
+
+        return StreamWrapper(input_streams={}, output_streams={"out": self.node.out})
+
+    def __to_planar(self, arr, shape=None):
+        if shape is not None:
+            arr = cv2.resize(arr, shape)
+        return arr.transpose(2, 0, 1).flatten()
 
 
 class Replay(Node, InputOutput):
@@ -35,9 +169,9 @@ class Replay(Node, InputOutput):
         self,
         pm: PipelineManager,
         path: str,
-        streams: List[str] = None,
+        streams: list[str] = None,
         keep_ar=True,
-        color_size: Tuple[int, int] = None,
+        color_size: tuple[int, int] = None,
     ):
         """Create a replay node
 
@@ -85,7 +219,7 @@ class Replay(Node, InputOutput):
         for name, cap in self.cap.items():
             self.size[name] = self.__get_size(cap)
 
-        self.color_size: Tuple[int, int] = color_size
+        self.color_size: tuple[int, int] = color_size
 
         # keep the aspect ratio
         self.keep_ar = keep_ar
@@ -361,7 +495,12 @@ class StreamWrapper(InputOutput):
     For example: You have an object that needs to access stream 'out' but you current object only provides 'cam'. With this node you can wrap the streams so that 'out' -> 'cam'.
     """
 
-    def __init__(self, input_streams: Dict[str, any], output_streams: Dict[str, any]):
+    def __init__(
+        self,
+        input_streams: dict[str, any],
+        output_streams: dict[str, any],
+        default_output=None,
+    ):
         """Create wrapping for streams
 
         Args:
@@ -371,12 +510,20 @@ class StreamWrapper(InputOutput):
         self.input_streams = input_streams
         self.output_streams = output_streams
 
+        self.default_output = default_output
+
     @property
     def outputs(self):
         return self.output_streams.keys()
 
     def get_output(self, name: str):
         return self.output_streams[name]
+
+    def get_default_output(self):
+        assert (
+            self.default_output is not None
+        ), "Default output not specified but accessed"
+        return self.default_output
 
     @property
     def inputs(self):

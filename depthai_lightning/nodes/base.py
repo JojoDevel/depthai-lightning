@@ -1,6 +1,6 @@
 """Base classes for high-level nodes"""
 
-from typing import List
+from typing import Any, List
 
 import depthai as dai
 
@@ -136,3 +136,49 @@ class Node:
 
     def deactivate(self):
         pass
+
+
+class LazyXNode(Node):
+    """Node for lazy xnode creation. XLinkNode is only created on direct request and usage for other node."""
+
+    def __init__(self, pm: Node, xnode_creator, host_node_creator=None):
+        """_summary_
+
+        Args:
+            pm (Node): global pipeline manager
+            xnode_creator (_type_): function to create xnode on devcie
+            host_node_creator (_type_, optional): function to create similar host node. Defaults to None.
+        """
+        super().__init__(pm)
+        self.node = None
+        self.xnode_creator = xnode_creator
+        self.host_node_creator = host_node_creator
+
+        self.x_link_pipeline_created = False
+
+    def activate(self, device: dai.Device):
+        self.x_link_pipeline_created = True
+
+    def __create(self):
+        if self.node is None:
+            if self.x_link_pipeline_created is False:
+                # create node
+                self.node = self.xnode_creator()
+            else:
+                # node was not linke before pipeline creation
+                if self.host_node_creator is not None:
+                    self.node = self.host_node_creator()
+                else:
+                    raise ValueError(
+                        "Your Node has not been linked in the pipeline before the device creation! And you have not added a creator for the host node"
+                    )
+
+        return self.node
+
+    def __getattribute__(self, __name: str) -> Any:
+        try:
+            return super().__getattribute__(__name)
+        except AttributeError:
+            # create the node on the device only on request
+            node = self.__create()
+            return getattr(node, __name)
