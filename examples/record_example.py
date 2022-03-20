@@ -17,7 +17,7 @@ if __name__ == "__main__":
         description="App for recording compressed camera streams"
     )
     parser.add_argument(
-        "-p", "--preview", action="store_true", help="Show preview", default=False
+        "-p", "--preview", action="store_true", help="Show preview", default=True
     )
     parser.add_argument(
         "-q",
