@@ -10,7 +10,8 @@ with open("README.md", encoding="utf-8") as readme_file:
 with open("HISTORY.rst", encoding="utf-8") as history_file:
     history = history_file.read()
 
-requirements = []
+with open("requirements.txt", encoding="utf-8") as requirements_file:
+    requirements = requirements_file.readlines()
 
 test_requirements = []
 
