@@ -218,6 +218,232 @@ class YoloDetector(ObjectDetector):
         cv2.imshow(name, frame)
 
 
+class YoloSpatialDetector(ObjectDetector):
+    """Object detector using yolo model"""
+
+    def __init__(
+        self,
+        pm: PipelineManager,
+        config: Path,
+        blob: Path,
+        camRgb: ColorCamera,
+        stereo: StereoDepth,
+        provide_rgb=True,
+        spatialCalculationAlgorithm=dai.SpatialLocationCalculatorAlgorithm.AVERAGE,
+    ):
+        super().__init__(pm)
+
+        self.provide_rgb = provide_rgb
+        self.camRgb = camRgb
+        self.stereo = stereo
+        self.spatialCalculationAlgorithm = spatialCalculationAlgorithm
+
+        assert config.exists()
+        assert blob.exists()
+
+        with open(config, encoding="utf-8") as config_input:
+            self.yolo_config = json.load(config_input)
+
+        self.__create_detection_network(blob)
+
+        # sync outputs
+        # syncNN = True
+
+        # Cache for detections and frame
+        self.last_detections = None
+        self.last_frame = None
+
+    def __create_detection_network(self, blob):
+        nnConfig = self.yolo_config.get("nn_config", {})
+
+        # parse input shape
+        if "input_size" in nnConfig:
+            W, H = tuple(map(int, nnConfig.get("input_size").split("x")))
+
+        # extract metadata
+        metadata = nnConfig.get("NN_specific_metadata", {})
+        classes = metadata.get("classes", {})
+        coordinates = metadata.get("coordinates", {})
+        anchors = metadata.get("anchors", {})
+        anchorMasks = metadata.get("anchor_masks", {})
+        iouThreshold = metadata.get("iou_threshold", {})
+        confidenceThreshold = metadata.get("confidence_threshold", {})
+
+        print(metadata)
+
+        # parse labels
+        nnMappings = self.yolo_config.get("mappings", {})
+        self.labels = nnMappings.get("labels", {})
+
+        spatialDetectionNetwork = self.pm.pipeline.create(
+            dai.node.YoloSpatialDetectionNetwork
+        )
+
+        if isinstance(self.camRgb, ColorCamera):
+            assert self.camRgb.preview_size == (
+                W,
+                H,
+            ), f"Yolo network expects input size ({W}, {H}) but camera gives ({self.camRgb.preview_size[0]}, {self.camRgb.preview_size[1]})"
+            self.camRgb.cam.setInterleaved(False)
+
+        # Network specific settings
+        spatialDetectionNetwork.setConfidenceThreshold(confidenceThreshold)
+        spatialDetectionNetwork.setNumClasses(classes)
+        spatialDetectionNetwork.setCoordinateSize(coordinates)
+        spatialDetectionNetwork.setAnchors(anchors)
+        spatialDetectionNetwork.setAnchorMasks(anchorMasks)
+        spatialDetectionNetwork.setIouThreshold(iouThreshold)
+        spatialDetectionNetwork.setBlobPath(blob)
+        spatialDetectionNetwork.setNumInferenceThreads(2)
+        spatialDetectionNetwork.input.setBlocking(False)
+
+        if self.spatialCalculationAlgorithm:
+            spatialDetectionNetwork.setSpatialCalculationAlgorithm(
+                self.spatialCalculationAlgorithm
+            )
+
+        # define inputs and outputs
+        self._inputs = {
+            "input": spatialDetectionNetwork.input,
+            "inputDepth": spatialDetectionNetwork.inputDepth,
+        }
+        self._outputs = {
+            "rgb": spatialDetectionNetwork.passthrough,
+            "passthrough": spatialDetectionNetwork.passthrough,
+            "out": spatialDetectionNetwork.out,
+            "passthroughDepth": spatialDetectionNetwork.passthroughDepth,
+        }
+
+        if self.provide_rgb:
+            self.lv_rgb = LiveView(self.pm, self, "rgb", preview_modifier)
+            self.lv_nn = LiveView(self.pm, self, "out", lambda d: d)
+
+        # Linking
+        self.camRgb.linkTo(self, "preview", "input")
+        self.stereo.linkTo(self, "depth", "inputDepth")
+
+    @property
+    def inputs(self) -> list[str]:
+        return self._inputs.keys()
+
+    def get_input(self, name: str):
+        assert name in self._inputs
+        return self._inputs[name]
+
+    @property
+    def outputs(self) -> list[str]:
+        return self._outputs.keys()
+
+    def get_output(self, name: str):
+        assert name in self.outputs
+        return self._outputs[name]
+
+    def activate(self, device: dai.Device):
+        # all preparations are performed by high-level nodes
+        pass
+
+    def get_detections(self):
+        """Retrieve brand-new detections package from OAK-D devie
+
+        Returns:
+            _type_: detections package
+        """
+        self.last_detections = self.lv_nn.get()
+        return self.last_detections
+
+    def get_frame(self):
+        """Retrieve brand-new frame from camera stream
+
+        Returns:
+            np.arry: cv2 image
+        """
+        assert self.provide_rgb, "You need to active rgb output to access the frame"
+        self.last_frame = self.lv_rgb.get()
+        return self.last_frame
+
+    def displayFrame(
+        self, name: str, frame=None, new_detections=True, color=(255, 0, 0)
+    ):
+        """Displays the video frame and draws detection results
+
+        Args:
+            name (str): Name of the cv2 window.
+            frame (_type_, optional): The frame of the video feed. Defaults to None (we get the frame internally).
+            new_detections (bool, optional): Retrieve brand-new detections from the device or used cached ones. Defaults to True.
+        """
+        if new_detections:
+            # get brand-new detections
+            detections = self.get_detections().detections
+            if frame is None:
+                # and also frame
+                frame = self.get_frame()
+        else:
+            # get cached detections
+            detections = self.last_detections.detections
+            if frame is None:
+                # and also frame
+                frame = self.last_frame
+
+        # blue color for object bboxes
+        height = frame.shape[0]
+        width = frame.shape[1]
+        for detection in detections:
+            # Denormalize bounding box
+            x1 = int(detection.xmin * width)
+            x2 = int(detection.xmax * width)
+            y1 = int(detection.ymin * height)
+            y2 = int(detection.ymax * height)
+            try:
+                label = self.labels[detection.label]
+            except KeyError:
+                label = detection.label
+            cv2.putText(
+                frame,
+                str(label),
+                (x1 + 10, y1 + 20),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                color,
+            )
+            cv2.putText(
+                frame,
+                f"{detection.confidence*100:.2f}",
+                (x1 + 10, y1 + 35),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                color,
+            )
+            cv2.putText(
+                frame,
+                f"X: {int(detection.spatialCoordinates.x)} mm",
+                (x1 + 10, y1 + 50),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                color,
+            )
+            cv2.putText(
+                frame,
+                f"Y: {int(detection.spatialCoordinates.y)} mm",
+                (x1 + 10, y1 + 65),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                color,
+            )
+            cv2.putText(
+                frame,
+                f"Z: {int(detection.spatialCoordinates.z)} mm",
+                (x1 + 10, y1 + 80),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.5,
+                color,
+            )
+
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
+
+        # Show the frame
+        cv2.imshow(name, frame)
+
+
 class SpatialDetector(ObjectDetector):
     """Spatial detector node"""
 
