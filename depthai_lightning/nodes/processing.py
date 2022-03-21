@@ -420,6 +420,8 @@ class StereoConfig:
         median_filter=dai.StereoDepthProperties.MedianFilter.KERNEL_3x3,
         depth_align=dai.CameraBoardSocket.RGB,
         input_resolution=None,
+        disparity_size: tuple[int, int] = None,
+        confidence_threshold: int = 255,
     ):
 
         self.rectify_edge_fill_color = rectify_edge_fill_color
@@ -432,12 +434,16 @@ class StereoConfig:
 
         self.input_resolution = input_resolution
 
+        self.disparity_size = disparity_size
+
+        self.confidence_threshold = confidence_threshold
+
         assert not (
             subpixel and extended_disparity
         ), "Subpixel and ExtendedDisparity are not supported at the same time"
 
 
-class StereoDepth(Node):
+class StereoDepth(Node, InputOutput):
     """stereo depth node"""
 
     _inputs = ["left", "right", "inputConfig"]
@@ -477,10 +483,18 @@ class StereoDepth(Node):
         self.stereo.setExtendedDisparity(config.extended_disparity)
         self.stereo.setDefaultProfilePreset(config.default_profile_preset)
         self.stereo.initialConfig.setMedianFilter(config.median_filter)
-        self.stereo.setDepthAlign(config.depth_align)
+
+        if config.depth_align:
+            self.stereo.setDepthAlign(config.depth_align)
 
         if config.input_resolution:
             self.stereo.setInputResolution(*config.input_resolution)
+
+        if config.disparity_size:
+            self.stereo.setOutputSize(*config.disparity_size)
+
+        if not config.confidence_threshold is None:
+            self.stereo.setConfidenceThreshold(config.confidence_threshold)
 
     @property
     def inputs(self):
