@@ -1,11 +1,12 @@
 """
-Example for replaying recorded streams and depth computation
+Example for replaying recorded streams and aligned depth computation
 """
 
 import argparse
 from functools import partial
 
 import cv2
+import depthai as dai
 import numpy as np
 
 from depthai_lightning.depthai_lightning import PipelineManager
@@ -56,7 +57,15 @@ if __name__ == "__main__":
         pm,
         rp.left,
         rp.right,
-        StereoConfig(input_resolution=rp.size["left"], subpixel=True),
+        StereoConfig(
+            input_resolution=rp.size["left"],
+            subpixel=True,
+            # align depth to rgb
+            depth_align=dai.CameraBoardSocket.RGB,
+            # disparity size: aligns disparity with rgb (for 1080 rgb recording).
+            # only needed with replay otherwise handled by Color Camera node.
+            disparity_size=(1920 // 2, 1080 // 2),
+        ),
     )
 
     # compute the disparity multiplier (to go to range [0...255])
@@ -77,6 +86,9 @@ if __name__ == "__main__":
 
     # create device with pipeline
     with pm.createDevice() as device:
+        # boost performance (factor x3) by pre-filling pipeline (no longer data transfer bound)
+        rp.send_frames()
+        rp.send_frames()
         fpsC.start()
         while True:
             # send frames to device
