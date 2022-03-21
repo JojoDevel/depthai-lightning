@@ -35,14 +35,25 @@ class YoloDetector(ObjectDetector):
         super().__init__(pm)
 
         self.provide_rgb = provide_rgb
+        self.camRgb = camRgb
 
         assert config.exists()
         assert blob.exists()
 
         with open(config, encoding="utf-8") as config_input:
-            yolo_config = json.load(config_input)
+            self.yolo_config = json.load(config_input)
 
-        nnConfig = yolo_config.get("nn_config", {})
+        self.__create_detection_network(blob)
+
+        # sync outputs
+        # syncNN = True
+
+        # Cache for detections and frame
+        self.last_detections = None
+        self.last_frame = None
+
+    def __create_detection_network(self, blob):
+        nnConfig = self.yolo_config.get("nn_config", {})
 
         # parse input shape
         if "input_size" in nnConfig:
@@ -60,20 +71,17 @@ class YoloDetector(ObjectDetector):
         print(metadata)
 
         # parse labels
-        nnMappings = yolo_config.get("mappings", {})
+        nnMappings = self.yolo_config.get("mappings", {})
         self.labels = nnMappings.get("labels", {})
 
-        # sync outputs
-        # syncNN = True
+        detectionNetwork = self.pm.pipeline.create(dai.node.YoloDetectionNetwork)
 
-        detectionNetwork = pm.pipeline.create(dai.node.YoloDetectionNetwork)
-
-        if isinstance(camRgb, ColorCamera):
-            assert camRgb.preview_size == (
+        if isinstance(self.camRgb, ColorCamera):
+            assert self.camRgb.preview_size == (
                 W,
                 H,
-            ), f"Yolo network expects input size ({W}, {H}) but camera gives ({camRgb.preview_size[0]}, {camRgb.preview_size[1]})"
-            camRgb.cam.setInterleaved(False)
+            ), f"Yolo network expects input size ({W}, {H}) but camera gives ({self.camRgb.preview_size[0]}, {self.camRgb.preview_size[1]})"
+            self.camRgb.cam.setInterleaved(False)
 
         # Network specific settings
         detectionNetwork.setConfidenceThreshold(confidenceThreshold)
@@ -95,15 +103,11 @@ class YoloDetector(ObjectDetector):
         }
 
         if self.provide_rgb:
-            self.lv_rgb = LiveView(pm, self, "rgb", preview_modifier)
-            self.lv_nn = LiveView(pm, self, "out", lambda d: d)
+            self.lv_rgb = LiveView(self.pm, self, "rgb", preview_modifier)
+            self.lv_nn = LiveView(self.pm, self, "out", lambda d: d)
 
         # Linking
-        camRgb.linkTo(self, "preview", "input")
-
-        # Cache for detections and frame
-        self.last_detections = None
-        self.last_frame = None
+        self.camRgb.linkTo(self, "preview", "input")
 
     @property
     def inputs(self) -> list[str]:
