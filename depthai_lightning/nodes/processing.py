@@ -165,13 +165,17 @@ class YoloDetector(ObjectDetector):
         normVals[::2] = frame.shape[1]
         return (np.clip(np.array(bbox), 0, 1) * normVals).astype(int)
 
-    def displayFrame(self, name: str, frame=None, new_detections=True):
+    def draw_frame(
+        self, name: str, frame=None, new_detections=True, color=(255, 0, 0), show=True
+    ):
         """Displays the video frame and draws detection results
 
         Args:
             name (str): Name of the cv2 window.
             frame (_type_, optional): The frame of the video feed. Defaults to None (we get the frame internally).
             new_detections (bool, optional): Retrieve brand-new detections from the device or used cached ones. Defaults to True.
+            color (Tuple[int]): bgr color for drawing frames
+            show (boolean): whether to show in a cv2 frame
         """
         if new_detections:
             # get brand-new detections
@@ -187,7 +191,6 @@ class YoloDetector(ObjectDetector):
                 frame = self.last_frame
 
         # blue color for object bboxes
-        color = (255, 0, 0)
         for detection in detections:
             # convert normalized coordinates to pixel coordinates
             bbox = YoloDetector.frameNorm(
@@ -215,7 +218,8 @@ class YoloDetector(ObjectDetector):
             cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
 
         # Show the frame
-        cv2.imshow(name, frame)
+        if show:
+            cv2.imshow(name, frame)
 
 
 class YoloSpatialDetector(ObjectDetector):
