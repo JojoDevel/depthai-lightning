@@ -194,6 +194,10 @@ class YoloDetector(ObjectDetector):
 
         # blue color for object bboxes
         for detection in detections:
+            if isinstance(color, list):
+                local_color = color[detection.label]
+            else:
+                local_color = color
             # convert normalized coordinates to pixel coordinates
             bbox = YoloDetector.frameNorm(
                 frame, (detection.xmin, detection.ymin, detection.xmax, detection.ymax)
@@ -217,7 +221,7 @@ class YoloDetector(ObjectDetector):
                 255,
             )
             # draw bbox
-            cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
+            cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), local_color, 2)
 
         # Show the frame
         if show:
