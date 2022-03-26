@@ -176,6 +176,8 @@ class YoloDetector(ObjectDetector):
             new_detections (bool, optional): Retrieve brand-new detections from the device or used cached ones. Defaults to True.
             color (Tuple[int]): bgr color for drawing frames
             show (boolean): whether to show in a cv2 frame
+        Returns:
+            np.arry: frame with drawn bboxes, scores and labels
         """
         if new_detections:
             # get brand-new detections
@@ -220,6 +222,8 @@ class YoloDetector(ObjectDetector):
         # Show the frame
         if show:
             cv2.imshow(name, frame)
+
+        return frame
 
 
 class YoloSpatialDetector(ObjectDetector):
