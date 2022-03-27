@@ -229,12 +229,21 @@ class LiveView(Node):
         )
 
     def get(self):
-        """Retrieve an image frame from the stream
+        """Retrieve an image frame from the xLink stream (blocking)
 
         Returns:
             np.array: cv frame
         """
         inFrame = self.qView.get()
+        return self.data_modifier(inFrame)
+
+    def try_get(self):
+        """Retrieve an data frame from the xLink stream (non-blocking)
+
+        Returns:
+            any: data frame modified by the data modifier or None if there is no data frame available
+        """
+        inFrame = self.qView.tryGet()
         return self.data_modifier(inFrame)
 
     def show(self, frame_title="frame"):
