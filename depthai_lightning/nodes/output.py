@@ -346,3 +346,102 @@ class MultiStreamRecorder(Node):
         """Store all encoders to files"""
         for encoder in self.encoders.values():
             encoder.write()
+
+
+class SystemLogger(Node, InputOutput):
+    """Node to display OAK-D system information (e.g. memory usage, temperature)"""
+
+    def __init__(self, pm: PipelineManager, rate=1, obtain=True):
+        """Create a new system logger node
+
+        Args:
+            pm (PipelineManager): the global pipeline manager.
+            rate (float, optional): Rate in Hz to retrieve system information. Defaults to 1.
+            obtain (bool, optional): whether to connect to the pipeline node . Defaults to True.
+        """
+        super().__init__(pm)
+
+        # create system logger node
+        self.sysLog = pm.pipeline.create(dai.node.SystemLogger)
+        # set sampling rate
+        self.sysLog.setRate(rate)
+
+        # configure node outputs
+        self._outputs = {"out": self.sysLog.out}
+
+        # create view on data if needed
+        if obtain:
+            self.lv = LiveView(pm, self, "out")
+
+    @property
+    def inputs(self) -> list[str]:
+        return []
+
+    def get_input(self, name: str):
+        raise ValueError("No inputs available!")
+
+    @property
+    def outputs(self) -> list[str]:
+        return self._outputs.keys()
+
+    def get_output(self, name: str):
+        assert name in self.outputs
+        return self._outputs[name]
+
+    def get_data_modifier(self, name: str):
+        if name in self.outputs:
+            # just identity, we do not need to modify the data
+            return lambda data: data
+        raise ValueError("Unkwnown output name")
+
+    def print_system_information(self, information=None):
+        """Print system information to stdout if available
+
+        Args:
+            information (_type_, optional): A specific information package that we want to print. If None, we try to obtain new information. Defaults to None.
+        """
+        if information is None:
+            # get new information
+            information = self.get_system_information()
+
+        if information is not None:
+            # print when info is available
+            self.printSystemInformation(information)
+
+    def get_system_information(self):
+        """Obtain system information form xLink
+
+        Returns:
+            _type_: system information package or None (if not yet available)
+        """
+
+        return self.lv.try_get()
+
+    @staticmethod
+    def printSystemInformation(info):
+        """Print system information in stdout
+
+        Args:
+            info (_type_): system information
+        """
+        m = 1024 * 1024  # MiB
+        print(
+            f"Ddr used / total - {info.ddrMemoryUsage.used / m:.2f} / {info.ddrMemoryUsage.total / m:.2f} MiB"
+        )
+        print(
+            f"Cmx used / total - {info.cmxMemoryUsage.used / m:.2f} / {info.cmxMemoryUsage.total / m:.2f} MiB"
+        )
+        print(
+            f"LeonCss heap used / total - {info.leonCssMemoryUsage.used / m:.2f} / {info.leonCssMemoryUsage.total / m:.2f} MiB"
+        )
+        print(
+            f"LeonMss heap used / total - {info.leonMssMemoryUsage.used / m:.2f} / {info.leonMssMemoryUsage.total / m:.2f} MiB"
+        )
+        t = info.chipTemperature
+        print(
+            f"Chip temperature - average: {t.average:.2f}, css: {t.css:.2f}, mss: {t.mss:.2f}, upa: {t.upa:.2f}, dss: {t.dss:.2f}"
+        )
+        print(
+            f"Cpu usage - Leon CSS: {info.leonCssCpuUsage.average * 100:.2f}%, Leon MSS: {info.leonMssCpuUsage.average * 100:.2f} %"
+        )
+        print("----------------------------------------")
