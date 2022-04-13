@@ -584,7 +584,7 @@ class ObjectTracker(Node, InputOutput):
         """Read tracklets from device"""
         return self.lv_tracker_output.get().tracklets
 
-    def draw_frame(self, frame=None, tracklets=None, show=True):
+    def draw_frame(self, frame=None, tracklets=None, show=True, color=(255, 0, 0)):
         """Draw the tracklets on frame
 
         Args:
@@ -598,7 +598,6 @@ class ObjectTracker(Node, InputOutput):
             # get tracklet
             tracklets = self.lv_tracker_output.get().tracklets
 
-        color = (255, 0, 0)
         for t in tracklets:
             # loop over all tracklets
             roi = t.roi.denormalize(frame.shape[1], frame.shape[0])
