@@ -1,11 +1,12 @@
 """
-Example for replaying recorded streams and depth computation
+Example for replaying recorded streams and aligned depth computation
 """
 
 import argparse
 from functools import partial
 
 import cv2
+import depthai as dai
 import numpy as np
 
 from depthai_lightning.depthai_lightning import PipelineManager
@@ -16,6 +17,7 @@ from depthai_lightning.nodes import (
     StereoDepth,
     preview_modifier,
 )
+from depthai_lightning.utils import FPSCounter
 
 
 def disp_mode(inData, disparity_multiplier: float):
@@ -48,14 +50,22 @@ if __name__ == "__main__":
     pm = PipelineManager()
 
     # create replay node to read streams from files
-    rp = Replay(pm, args.path)
+    rp = Replay(pm, args.path, streams=["left", "right"])
 
     # create stereo node based on replay inputs
     stereo = StereoDepth(
         pm,
         rp.left,
         rp.right,
-        StereoConfig(input_resolution=rp.size["left"], subpixel=True),
+        StereoConfig(
+            input_resolution=rp.size["left"],
+            subpixel=True,
+            # align depth to rgb
+            depth_align=dai.CameraBoardSocket.RGB,
+            # disparity size: aligns disparity with rgb (for 1080 rgb recording).
+            # only needed with replay otherwise handled by Color Camera node.
+            disparity_size=(1920 // 2, 1080 // 2),
+        ),
     )
 
     # compute the disparity multiplier (to go to range [0...255])
@@ -72,8 +82,14 @@ if __name__ == "__main__":
     )
     depth = LiveView(pm, stereo, "depth", preview_modifier)
 
+    fpsC = FPSCounter()
+
     # create device with pipeline
     with pm.createDevice() as device:
+        # boost performance (factor x3) by pre-filling pipeline (no longer data transfer bound)
+        rp.send_frames()
+        rp.send_frames()
+        fpsC.start()
         while True:
             # send frames to device
             rp.send_frames()
@@ -83,6 +99,9 @@ if __name__ == "__main__":
             mono_right.show("right")
             disparity.show("disp")
             depth.show("depth")
+
+            fpsC.tick()
+            fpsC.publish()
 
             if cv2.waitKey(1) == ord("q"):
                 break

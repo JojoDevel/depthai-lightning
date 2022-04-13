@@ -1,28 +1,72 @@
 """
 Utilities module
 """
+import time
 
-import numba as nb
+import cv2
+import numpy as np
 
-# Packing scheme for RAW10 - MIPI CSI-2
-# - 4 pixels: p0[9:0], p1[9:0], p2[9:0], p3[9:0]
-# - stored on 5 bytes (byte0..4) as:
-# | byte0[7:0] | byte1[7:0] | byte2[7:0] | byte3[7:0] |          byte4[7:0]             |
-# |    p0[9:2] |    p1[9:2] |    p2[9:2] |    p3[9:2] | p3[1:0],p2[1:0],p1[1:0],p0[1:0] |
 
-# Optimized with 'numba' as otherwise would be extremely slow (55 seconds per frame!)
-@nb.njit(
-    nb.uint16[::1](nb.uint8[::1], nb.uint16[::1], nb.boolean), parallel=True, cache=True
-)
-def unpack_raw10(input_frame, out, expand16bit):
-    lShift = 6 if expand16bit else 0
+class FPSCounter:
+    """Counts frame events to compute fps (using median)"""
 
-    # for i in np.arange(input.size // 5): # around 25ms per frame (with numba)
-    for i in nb.prange(input_frame.size // 5):  # around  5ms per frame
-        b4 = input_frame[i * 5 + 4]
-        out[i * 4] = ((input_frame[i * 5] << 2) | (b4 & 0x3)) << lShift
-        out[i * 4 + 1] = ((input_frame[i * 5 + 1] << 2) | ((b4 >> 2) & 0x3)) << lShift
-        out[i * 4 + 2] = ((input_frame[i * 5 + 2] << 2) | ((b4 >> 4) & 0x3)) << lShift
-        out[i * 4 + 3] = ((input_frame[i * 5 + 3] << 2) | (b4 >> 6)) << lShift
+    def __init__(self, max_size=30, method=np.median):
+        """_summary_
 
-    return out
+        Args:
+            max_size (int, optional): Maximum size of the cached durations. Defaults to 30.
+            method (_type_, optional): method to compute average/median from list of cache durations. Defaults to np.median.
+        """
+        self.start_time = None
+        self.last_publish = None
+        self.durations = []
+        self.max_size = max_size
+        self.method = method
+
+    def start(self):
+        """Start time measuring"""
+        self.start_time = time.time()
+
+    def tick(self):
+        """Take note of a frame event"""
+        now = time.time()
+        self.durations.append(now - self.start_time)
+        self.start_time = now
+        self.durations = self.durations[-self.max_size :]
+
+    @property
+    def fps(self) -> float:
+        """Compute current fps
+
+        Returns:
+            float: fps
+        """
+        return 1.0 / self.method(self.durations)
+
+    def reset(self):
+        """Reste the counter"""
+        self.start_time = time.time()
+        self.durations = []
+
+    def publish(self, frame=None, every_n_seconds=5):
+        """Publish fps
+
+        Args:
+            frame (np.arry, optional): writes fps onto cv2 frame
+            every_n_seconds (int, optional): publishes every n seconds. Defaults to 5.
+        """
+        if frame is not None:
+            color = (255, 255, 255)
+            cv2.putText(
+                frame,
+                f"NN fps: {self.fps:.2f}",
+                (2, frame.shape[0] - 4),
+                cv2.FONT_HERSHEY_TRIPLEX,
+                0.4,
+                color,
+            )
+        if self.last_publish is None or (
+            time.time() - self.last_publish > every_n_seconds
+        ):
+            print(f"FPS: {self.fps}")
+            self.last_publish = time.time()
