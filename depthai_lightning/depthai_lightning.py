@@ -16,6 +16,19 @@ class PipelineManager:
 
         self.nodes = []
 
+    def __enter__(self):
+        self.device = self.createDevice()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        # exit OAK-D device
+        self.device.__exit__(exc_type, exc_value, exc_traceback)
+        self.device = None
+
+        # close all nodes
+        for node in self.nodes:
+            node.deactivate()
+
     def createDevice(self):
         self.device = dai.Device(self.pipeline)
 
@@ -41,6 +54,7 @@ class PipelineManager:
             index = 0
             while temp_name in self.xstream_names:
                 temp_name = f"{name}_{index}"
+                index += 1
 
             logging.info("Rename requested stream: %s -> %s", name, temp_name)
 

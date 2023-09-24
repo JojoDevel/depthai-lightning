@@ -13,3 +13,6 @@ disable =
     R0201, # problems with abstract methods
     W0511, # allow TODO/FIXME for now (should be removed when going stable)
     E1136, # subscriptable error when intializing object with None first
+    R1732, # problems with file opening
+
+extension-pkg-allow-list=cv2,depthai
