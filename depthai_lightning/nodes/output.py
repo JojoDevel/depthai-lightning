@@ -71,6 +71,7 @@ class EncodingConfig(Enum):
     HIGH = (Codec.MJPEG, 97, None)  # MJPEG Quality=97 (default)
     MEDIUM = (Codec.MJPEG, 97, None)  # MJPEG Quality=93
     LOW = (Codec.H265, None, 10000)  # H265 BitrateKbps=10000
+    HIGH_VIDEO = (Codec.H265, None, 40000)
 
 
 class VideoEncoder(Node, InputOutput):
@@ -274,6 +275,7 @@ class MultiStreamRecorder(Node):
         nodes: dict[str, InputOutput],
         path=Path("recordings"),
         quality: EncodingConfig | dict[str, EncodingConfig] = EncodingConfig.LOW,
+        fps=30,
     ):
         """
 
@@ -285,7 +287,7 @@ class MultiStreamRecorder(Node):
         """
         super().__init__(pm)
 
-        self.fps = 30
+        self.fps = fps
         self.quality = EncodingConfig.HIGH
         self.path = path
         self.nodes = nodes
