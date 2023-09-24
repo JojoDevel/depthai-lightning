@@ -172,6 +172,7 @@ class Replay(Node, InputOutput):
         streams: list[str] = None,
         keep_ar=True,
         color_size: tuple[int, int] = None,
+        use_calib=True,
     ):
         """Create a replay node
 
@@ -213,7 +214,10 @@ class Replay(Node, InputOutput):
             raise RuntimeError("There are no recordings in the folder specified.")
 
         # Load calibration data from the recording folder
-        self.calibData = dai.CalibrationHandler(str(self.path / "calib.json"))
+        if use_calib:
+            self.calibData = dai.CalibrationHandler(str(self.path / "calib.json"))
+        else:
+            self.calibData = None
 
         # Read basic info about the straems (resolution of streams etc.)
         for name, cap in self.cap.items():
@@ -336,7 +340,8 @@ class Replay(Node, InputOutput):
         mono = ("left" in self.cap) and ("right" in self.cap)
         depth = "depth" in self.cap
 
-        pipeline.setCalibrationData(self.calibData)
+        if self.calibData is not None:
+            pipeline.setCalibrationData(self.calibData)
 
         if "color" in self.cap:
             # create color stream
