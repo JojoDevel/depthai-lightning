@@ -91,6 +91,8 @@ class Video(Node):
             frame = self.read_frame()
         self.__send_color(self.input_queue, frame)
 
+        return frame
+
     def __send_color(self, q, img):
         # Resize/crop color frame as specified by the user
         img = self.__resize_color(img)
